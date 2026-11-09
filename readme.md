@@ -51,7 +51,7 @@ Displays a single axial slice from a given patient across all four modalities si
 
 ---
 
-### 2.2 Unsharp Masking
+### 1.2 Unsharp Masking
 
 **Function: `unsharp_masking(image, radius=1.0, amount=1.0)`**
 
