@@ -12,164 +12,38 @@
 ---
 
 ## Table of Contents
-
-1. [Start Time](#1-start-time)
-2. [All Imports](#2-all-imports)
-3. [Path Setup](#3-path-setup)
-4. [Dataset Handling](#4-dataset-handling)
-   - [GLI Task](#41-gli-task)
-   - [MEN-RT Task](#42-men-rt-task)
-5. [Preprocessing](#5-preprocessing)
-   - [Before Preprocessing — Visualisation](#51-before-preprocessing--visualisation)
-   - [Unsharp Masking](#52-unsharp-masking)
-   - [Z-Score Normalization](#53-z-score-normalization)
-   - [Histogram of Preprocessing](#54-histogram-of-preprocessing)
-   - [Edge Visualising Plot](#55-edge-visualising-plot)
-   - [Plot Tumour Images](#56-plot-tumour-images)
-6. [Model Architecture](#6-model-architecture)
-   - [Attention U-Net](#61-attention-u-net)
-   - [ResNet-10](#62-resnet-10)
-   - [SMM-Fusion](#63-smm-fusion)
-7. [Training Setup](#7-training-setup)
-   - [Loader Classes](#71-loader-classes)
-   - [Data Loading Setup](#72-data-loading-setup)
-   - [Data Splitting](#73-data-splitting)
-   - [Utility Functions & Metrics](#74-utility-functions--metrics)
-8. [Attention U-Net Training](#8-attention-u-net-training)
-   - [2.5D Segmentation Training](#81-25d-segmentation-training)
-   - [Testing — 2.5D Model](#82-testing--25d-model)
-   - [Visualisation — 2.5D Predictions](#83-visualisation--25d-predictions)
-   - [2D Segmentation Training](#84-2d-segmentation-training)
-   - [Testing — 2D Model](#85-testing--2d-model)
-9. [Classification Training](#9-classification-training)
+1. [Preprocessing](#1-preprocessing)
+   - [Before Preprocessing — Visualisation](#11-before-preprocessing--visualisation)
+   - [Unsharp Masking](#12-unsharp-masking)
+   - [Z-Score Normalization](#13-z-score-normalization)
+   - [Histogram of Preprocessing](#14-histogram-of-preprocessing)
+   - [Edge Visualising Plot](#15-edge-visualising-plot)
+   - [Plot Tumour Images](#16-plot-tumour-images)
+2. [Model Architecture](#2-model-architecture)
+   - [Attention U-Net](#21-attention-u-net)
+   - [ResNet-10](#22-resnet-10)
+   - [SMM-Fusion](#23-smm-fusion)
+3. [Training Setup](#3-training-setup)
+   - [Loader Classes](#31-loader-classes)
+   - [Data Loading Setup](#32-data-loading-setup)
+   - [Data Splitting](#33-data-splitting)
+   - [Utility Functions & Metrics](#34-utility-functions--metrics)
+8. [Attention U-Net Training](#4-attention-u-net-training)
+   - [2.5D Segmentation Training](#41-25d-segmentation-training)
+   - [Testing — 2.5D Model](#42-testing--25d-model)
+   - [Visualisation — 2.5D Predictions](#43-visualisation--25d-predictions)
+   - [2D Segmentation Training](#44-2d-segmentation-training)
+   - [Testing — 2D Model](#45-testing--2d-model)
+4. [Classification Training](#5-classification-training)
    - [Class Weights & Model Initialisation](#91-class-weights--model-initialisation)
-   - [ResNet-10 Training](#92-resnet-10-training)
-   - [SMM-Fusion Training](#93-smm-fusion-training)
-10. [Training Progress Visualisations](#10-training-progress-visualisations)
-11. [Auto-Disconnection](#11-auto-disconnection)
+   - [ResNet-10 Training](#52-resnet-10-training)
+   - [SMM-Fusion Training](#53-smm-fusion-training)
+5. [Training Progress Visualisations](#6-training-progress-visualisations)
 
----
 
-## 1. Start Time
+## 1. Preprocessing
 
-Records the wall-clock time in the **Asia/Dhaka** timezone at the very start of the notebook execution. A `start_time` float (Unix epoch seconds) is also saved so total runtime can be computed at the end.
-
-```
-Training started at (Dhaka time): 2026-05-01 08:57:12 PM
-```
-
----
-
-## 2. All Imports
-
-All Python libraries are imported in a single cell to keep dependencies explicit and centralised.
-
-| Library | Purpose |
-|---|---|
-| `torch`, `torch.nn`, `torch.optim`, `torch.nn.functional` | Deep learning framework (PyTorch) |
-| `nibabel` (`nib`) | Loading NIfTI (`.nii.gz`) MRI files |
-| `numpy` | Numerical array operations |
-| `matplotlib.pyplot` | Plotting and visualisation |
-| `skimage.filters.unsharp_mask`, `skimage.filters.sobel` | Preprocessing — edge sharpening |
-| `skimage.feature.canny` | Edge detection |
-| `torch.utils.data.Dataset`, `DataLoader`, `ConcatDataset` | PyTorch data pipeline |
-| `tqdm` | Progress bars for extraction loops |
-| `zipfile`, `shutil`, `os`, `glob`, `time` | File I/O and timing |
-| `gc` | Garbage collection / GPU memory management |
-
----
-
-## 3. Path Setup
-
-### Google Drive Mount
-
-The notebook mounts Google Drive to access the dataset ZIP files stored at `/content/drive/MyDrive/BraTS2024/`.
-
-```
-Mounted at /content/drive
-```
-
-### Dataset Extraction
-
-Three ZIP archives are extracted from Google Drive into the Colab local storage (`/content/BraTS2024/`) for faster I/O during training.
-
-| ZIP File | Destination | Files | Time |
-|---|---|---|---|
-| `BraTS2024-BraTS-GLI-TrainingData.zip` | `BraTS-GLI/training` | 6 750 | ~15 min |
-| `BraTS2024-BraTS-GLI-AdditionalTrainingData.zip` | `BraTS-GLI/training` | 1 355 | ~2 min |
-| `BraTS2024-MEN-RT-TrainingData.zip` | `BraTS-MEN-RT/training` | 1 501 | ~4 min |
-
-**Total: 9 606 files extracted in ~21.7 minutes.**
-
-The extraction loop includes retry logic (up to 3 attempts per ZIP) that re-mounts Google Drive on failure to recover from transient I/O errors.
-
----
-
-## 4. Dataset Handling
-
-### 4.1 GLI Task
-
-**Class: `GLIZipDataset`** (inherits `torch.utils.data.Dataset`)
-
-Handles the **BraTS-GLI** (Glioma) dataset. Each patient folder contains four MRI modalities plus a segmentation mask.
-
-#### MRI Modalities per Patient (GLI)
-
-| Modality | File suffix | Description |
-|---|---|---|
-| T1n | `-t1n.nii.gz` | T1 native (pre-contrast) |
-| T1c | `-t1c.nii.gz` | T1 with contrast enhancement |
-| T2w | `-t2w.nii.gz` | T2-weighted |
-| T2f (FLAIR) | `-t2f.nii.gz` | T2 Fluid-Attenuated Inversion Recovery |
-| Segmentation | `-seg.nii.gz` | Ground-truth tumour mask |
-
-#### MRI Volume Slices
-
-Each MRI volume is a 3D NIfTI file. Raw volumes are spatially resized **per-slice** in the depth dimension:
-
-- **H × W dimensions** are interpolated to **160 × 160** pixels using bilinear interpolation (images) and nearest-neighbour (masks).
-- **D (depth) dimension is preserved as-is** — the native number of axial slices from the scanner, which is typically **155 slices** for BraTS-GLI data.
-
-So each loaded patient tensor is shaped:
-
-```
-Image:  [4, 160, 160, D]   — 4 channels × 160 × 160 pixels × D slices
-Mask:   [160, 160, D]      — single-channel segmentation × D slices
-```
-
-> **How slices are used in training:** Rather than loading the full 3D volume at once, the training loop processes **chunks of 8 slices** (`slice_chunk_size = 8`) at a time to fit within GPU memory.
-
-#### Class Label
-
-`class_label = 0` — used for binary tumour type classification (GLI vs MEN-RT).
-
----
-
-### 4.2 MEN-RT Task
-
-**Class: `MenRTZipDataset`** (inherits `torch.utils.data.Dataset`)
-
-Handles the **BraTS-MEN-RT** (Meningioma Radiotherapy) dataset. This dataset provides only **T1c** as the primary modality. The other three channels (T1n, T2w, T2f) are filled with **zeros** to maintain a consistent 4-channel input shape across both datasets.
-
-| Modality | File suffix | Value |
-|---|---|---|
-| T1n | — | Zero-filled |
-| T1c | `_t1c.nii.gz` | Loaded from file |
-| T2w | — | Zero-filled |
-| T2f | — | Zero-filled |
-| Segmentation | `_gtv.nii.gz` → renamed to `seg` | Ground-truth GTV mask |
-
-Same **160 × 160 spatial resize** and depth-preserved loading as GLI.
-
-#### Class Label
-
-`class_label = 1` — used for binary tumour type classification (GLI vs MEN-RT).
-
----
-
-## 5. Preprocessing
-
-### 5.1 Before Preprocessing — Visualisation
+### 1.1 Before Preprocessing — Visualisation
 
 **Function: `patient_slice(images, masks, patient_idx, slice_idx)`**
 
@@ -177,7 +51,7 @@ Displays a single axial slice from a given patient across all four modalities si
 
 ---
 
-### 5.2 Unsharp Masking
+### 2.2 Unsharp Masking
 
 **Function: `unsharp_masking(image, radius=1.0, amount=1.0)`**
 
@@ -216,7 +90,7 @@ where $G_\sigma$ is a Gaussian blur with standard deviation $\sigma = \text{radi
 
 ---
 
-### 5.3 Z-Score Normalization
+### 1.3 Z-Score Normalization
 
 **Function: `zscore_normalize(image, eps=1e-8)`**
 
@@ -245,15 +119,7 @@ Z-score normalisation ensures each modality has zero mean and unit variance, mak
 
 ---
 
-### 5.4 Histogram of Preprocessing
-
-**Function: `pixel_intensity_histograms(images, patient_idx, slice_idx, radius, amount, bins)`**
-
-Displays side-by-side histograms comparing pixel intensity distributions **before** and **after** unsharp masking, for all four modalities of a selected patient/slice. Non-brain background pixels (intensity = 0) are excluded. A vertical red dashed line marks the mean intensity on each histogram.
-
----
-
-### 5.5 Edge Visualising Plot
+### 1.5 Edge Visualising Plot
 
 Two functions visualise how unsharp masking affects edge structure:
 
@@ -275,13 +141,9 @@ Also prints quantitative statistics:
 - Number and percentage of pixels with enhanced edges
 - Mean, max, and min edge change
 
-#### `menrt_t1c_segmentation(images, masks, ...)`
-
-Specific to the MEN-RT dataset — shows T1c original + masked, original edges, and enhanced edges in a 2×2 grid.
-
 ---
 
-### 5.6 Plot Tumour Images
+### 1.6 Plot Tumour Images
 
 Visual comparison of all four MRI modalities (T1, T1CE, T2 and FLAIR) before and after preprocessing, illustrating unsharp masking, Z-score normalization and edge enhancement to highlight structural details and tumor boundaries.
 
@@ -295,9 +157,9 @@ Visual comparison of all four MRI modalities (T1, T1CE, T2 and FLAIR) before and
 
 ---
 
-## 6. Model Architecture
+## 2. Model Architecture
 
-### 6.1 Attention U-Net
+### 2.1 Attention U-Net
 
 A 2D encoder–decoder architecture with **attention gates** at each skip connection, adapted for **2.5D** inference (stacked context slices as channels).
 
@@ -360,7 +222,7 @@ Input (C_in × 160 × 160)
 
 ---
 
-### 6.2 ResNet-10
+### 2.2 ResNet-10
 
 A lightweight 2D residual classification network for tumour type prediction (GLI vs MEN-RT).
 
@@ -388,7 +250,7 @@ Input (C_in × 160 × 160)
 
 ---
 
-### 6.3 SMM-Fusion
+### 2.3 SMM-Fusion
 
 A **Segmentation-guided Multi-Modal Fusion** network that combines features extracted from the frozen pretrained Attention U-Net and ResNet-10 backbones for final tumour type classification.
 
@@ -434,9 +296,9 @@ ResNet feature dim: 256
 
 ---
 
-## 7. Training Setup
+## 3. Training Setup
 
-### 7.1 Loader Classes
+### 3.1 Loader Classes
 
 Two loader classes wrap the base dataset classes and apply preprocessing and augmentation on-the-fly:
 
@@ -462,7 +324,7 @@ With probability 0.7, one of the following augmentations is randomly applied:
 
 ---
 
-### 7.2 Data Loading Setup
+### 3.2 Data Loading Setup
 
 **Hardware:** NVIDIA A100-SXM4-40GB GPU
 
@@ -476,7 +338,7 @@ Both datasets are concatenated with `ConcatDataset` into a single `combined_trai
 
 ---
 
-### 7.3 Data Splitting
+### 3.3 Data Splitting
 
 A **stratified train/validation split** is applied to maintain class balance.
 
@@ -499,7 +361,7 @@ A custom `collate_pad_depth` function handles variable depth `D` by padding all 
 
 ---
 
-### 7.4 Utility Functions & Metrics
+### 3.4 Utility Functions & Metrics
 
 #### Segmentation Metrics
 
@@ -541,9 +403,9 @@ This gives each 2D prediction access to spatial context from one slice above and
 
 ---
 
-## 8. Attention U-Net Training
+## 4. Attention U-Net Training
 
-### 8.1 2.5D Segmentation Training
+### 4.1 2.5D Segmentation Training
 
 **Model:** `AttentionUNet(in_channels=12, out_channels=1, dropout_rate=0.3)`
 
@@ -576,13 +438,13 @@ The model completed all 50 epochs. The best checkpoint (`aunet25d_best_checkpoin
 
 ---
 
-### 8.2 Testing — 2.5D Model
+### 4.2 Testing — 2.5D Model
 
 Loads `aunet25d_best_checkpoint.pth` and evaluates on the validation set, computing Dice and IoU scores. Slices are processed in chunks of 16 (`slice_chunk_size_test = 16`) during inference.
 
 ---
 
-### 8.3 Visualisation — 2.5D Predictions
+### 4.3 Visualisation — 2.5D Predictions
 
 Loads the same best checkpoint and generates side-by-side visualisations of:
 - Input MRI slices (4 modalities)
@@ -591,7 +453,7 @@ Loads the same best checkpoint and generates side-by-side visualisations of:
 
 ---
 
-### 8.4 2D Segmentation Training
+### 4.4 2D Segmentation Training
 
 **Model:** `AttentionUNet(in_channels=4, out_channels=1, dropout_rate=0.3)` — standard 2D (no context slices)
 
@@ -617,15 +479,15 @@ The 2D model is a faster baseline — fewer epochs and a sub-sampled depth dimen
 
 ---
 
-### 8.5 Testing — 2D Model
+### 4.5 Testing — 2D Model
 
 Loads `aunet_2d_best_checkpoint.pth` and evaluates on the full validation depth (all slices, not sub-sampled), computing Dice and IoU.
 
 ---
 
-## 9. Classification Training
+## 5. Classification Training
 
-### 9.1 Class Weights & Model Initialisation
+### 5.1 Class Weights & Model Initialisation
 
 Class-balanced weights are computed from the training set label distribution:
 
@@ -646,7 +508,7 @@ These weights are passed to `CrossEntropyLoss` to compensate for the class imbal
 
 ---
 
-### 9.2 ResNet-10 Training
+### 5.2 ResNet-10 Training
 
 **Model:** `ResNet10(in_channels=12, num_classes=2)` (2.5D: 4 modalities × 3 context slices)
 
@@ -690,7 +552,7 @@ The ResNet-10 ran from epoch 38 to epoch 40, where early stopping ended training
 
 ---
 
-### 9.3 SMM-Fusion Training
+### 5.3 SMM-Fusion Training
 
 The SMM-Fusion model uses the **frozen** pretrained backbones (no gradient updates to AUNet or ResNet). Only the fusion network parameters are trained.
 
@@ -738,7 +600,7 @@ The SMM-Fusion training was interrupted after only 1 epoch (Colab session timeou
 
 ---
 
-## 10. Training Progress Visualisations
+## 6. Training Progress Visualisations
 
 **Function: Unified Evaluation Cell**
 
@@ -753,22 +615,6 @@ Prints a final **summary table** of best metrics across all models.
 **Segmentation — Train vs Validation curves (Loss, Dice, IoU):**
 
 ![Segmentation training progress](seg.png)
-
----
-
-## 11. Auto-Disconnection
-
-Computes total runtime from the `start_time` saved at the beginning:
-
-```python
-total_time = end_time - start_time
-```
-
-Prints runtime in hours/minutes/seconds and the current Dhaka time, then executes a JavaScript call to **disconnect the Colab runtime** automatically, releasing GPU resources:
-
-```python
-Javascript('google.colab.kernel.disconnect()')
-```
 
 ---
 
@@ -790,5 +636,3 @@ Javascript('google.colab.kernel.disconnect()')
 | **Combined** | **771** | — | — | — | — |
 
 ---
-
-*This document was generated by reading and annotating `T__2520848.ipynb`.*
