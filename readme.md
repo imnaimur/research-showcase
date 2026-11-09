@@ -3,10 +3,9 @@
 ---
 
 > ⚠️ **Disclaimer**
+>  **Source code, model weights, and raw data are not disclosed as the paper is still under peer review.** 
 >
-> This document is an **annotated summary** of a private research notebook produced as part of a thesis project . It is shared solely to demonstrate the author's technical ability, methodological understanding, and depth of work.
->
-> **Source code, model weights, and raw data are not disclosed.** All implementation details described here are the original work of the author. Reproduction, redistribution, or use of any part of this work without explicit written permission is strictly prohibited.
+> This document is an **annotated summary** of a private research notebook produced as part of a thesis project . It is shared solely to demonstrate the technical ability, methodological understanding and depth of work.
 
 ---
 
@@ -284,22 +283,15 @@ Specific to the MEN-RT dataset — shows T1c original + masked, original edges, 
 
 ### 5.6 Plot Tumour Images
 
-Datasets are instantiated and visualised before full training to confirm correct loading:
+Visual comparison of all four MRI modalities (T1, T1CE, T2 and FLAIR) before and after preprocessing, illustrating unsharp masking, Z-score normalization and edge enhancement to highlight structural details and tumor boundaries.
 
-```
-GLI Directory Dataset loaded:   271 patients  (training split)
-MEN-RT Directory Dataset loaded: 500 patients (training split)
-```
+**Patient 1 — Original vs. Preprocessed Multimodal MRI Images**
 
-Each dataset calls the visualisation functions above (patient slice view, edge comparison) for a sample of patients.
+![Patient 1 MRI](patient1.png)
 
-**Patient 0 — Axial slice across all 4 modalities with tumour mask overlay:**
+**Patient 2 — Original vs. Preprocessed Multimodal MRI Images:**
 
-![Patient 0 MRI](p0.png)
-
-**Patient 1 — Axial slice across all 4 modalities with tumour mask overlay:**
-
-![Patient 1 MRI](p1.png)
+![Patient 2 MRI](patient2.png)
 
 ---
 
