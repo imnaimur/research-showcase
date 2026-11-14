@@ -19,6 +19,7 @@
    - [Histogram of Preprocessing](#14-histogram-of-preprocessing)
    - [Edge Visualising Plot](#15-edge-visualising-plot)
    - [Plot Tumour Images](#16-plot-tumour-images)
+   - [Quantitative results comparison](#17-Quantitative-results-comparison)
 2. [Model Architecture](#2-model-architecture)
    - [Attention U-Net](#21-attention-u-net)
    - [ResNet-10](#22-resnet-10)
@@ -154,6 +155,18 @@ Visual comparison of all four MRI modalities (T1, T1CE, T2 and FLAIR) before and
 **Patient 2 — Original vs. Preprocessed Multimodal MRI Images:**
 
 ![Patient 2 MRI](patient2.png)
+
+### 1.7 Quantitative results comparison
+
+| Modality | Laplacian Variance (Original) | Laplacian Variance (Processed) | Change (%) | Tenengrad (Original) | Tenengrad (Processed) | Change (%) | Sobel Magnitude (Original) | Sobel Magnitude (Processed) | Change (%) |
+|:---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| T1n | 0.034193 | 0.100519 | +193.98% | 0.027426 | 0.044656 | +62.82% | 0.128487 | 0.163865 | +27.53% |
+| T1c | 0.038541 | 0.105021 | +172.49% | 0.018194 | 0.030999 | +70.38% | 0.090858 | 0.121813 | +34.07% |
+| T2w | 0.032837 | 0.093454 | +184.60% | 0.020073 | 0.034055 | +69.66% | 0.097992 | 0.125297 | +27.87% |
+| T2f | 0.057669 | 0.164033 | +184.44% | 0.034241 | 0.057289 | +67.31% | 0.136011 | 0.179523 | +31.99% |
+| **Average Change** | — | — | **+183.88%** | — | — | **+67.54%** | — | — | **+30.37%** |
+
+![MRI Comparison](comparison.png)
 
 ---
 
